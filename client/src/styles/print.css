@@ -1,0 +1,6 @@
+@media print {
+  body { background: #fff; }
+  .ant-modal, .ant-modal-content, .ant-modal-header, .ant-modal-footer { box-shadow: none !important; }
+  .ant-modal-close { display:none; }
+  .ant-modal { position: static !important; }
+}
