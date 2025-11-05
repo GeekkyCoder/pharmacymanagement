@@ -2,7 +2,7 @@ import axios from 'axios';
 import { message } from 'antd';
 
 const instance = axios.create({
-  baseURL: (import.meta as any).env.VITE_API_BASE || 'http://localhost:5000',
+  baseURL: (import.meta as any).env.VITE_API_BASE || 'https://pharmacymanagement-skkk.onrender.com',
 });
 
 instance.interceptors.request.use(config => {
