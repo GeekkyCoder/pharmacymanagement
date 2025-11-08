@@ -3,7 +3,6 @@ import { Layout, Menu, Grid } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import '../styles/dashboard.css';
-import AdminOverview from './dashboard/AdminOverview.tsx';
 
 const { Header, Sider, Content } = Layout;
 
@@ -57,6 +56,8 @@ const Dashboard: React.FC = () => {
           selectedKeys={[selected]}
           onClick={(info) => {
             if (info.key === 'logout') { logout(); navigate('/login'); return; }
+            // overview should navigate to base path for cleaner URL
+            if (info.key === 'overview') { navigate(base); return; }
             navigate(base + '/' + info.key);
           }}
           items={menuItems}
@@ -69,7 +70,7 @@ const Dashboard: React.FC = () => {
         </Header>
         <Content className="dashboard-content">
           <div className="content-inner">
-            {location.pathname === base && user?.role === 'admin' ? <AdminOverview /> : <Outlet />}
+            <Outlet />
           </div>
         </Content>
       </Layout>

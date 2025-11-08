@@ -14,11 +14,19 @@ exports.listMedicines = async (req, res, next) => {
     const meds = await Medicine.find({ admin: adminId });
     res.json(meds.map(m => ({
       id: m._id,
-      name: m.name,
-      genericName: m.genericName,
-      strength: m.strength,
+      productName: m.productName,
+      printName: m.printName,
+      brand: m.brand,
+      group: m.group,
+      type: m.type,
+      purchasePrice: m.purchasePrice,
+      salePrice: m.salePrice,
+      purchaseDate: m.purchaseDate,
+      expiryDate: m.expiryDate,
       totalQuantity: m.totalQuantity,
-      low: m.totalQuantity <= m.lowStockThreshold,
+      low: m.totalQuantity <= m.lockStockThreshold,
+      lockStockThreshold: m.lockStockThreshold,
+      controlled: m.controlled,
       batches: m.batches
     })));
   } catch (err) { next(err); }
@@ -26,13 +34,32 @@ exports.listMedicines = async (req, res, next) => {
 
 exports.addMedicine = async (req, res, next) => {
   try {
-    const { name, genericName, manufacturer, form, strength, category, controlled, lowStockThreshold, batch } = req.body;
+    const { type, group, brand, productName, printName, purchasePrice, salePrice, purchaseDate, expiryDate, controlled, lockStockThreshold, batchNo, quantity } = req.body;
     const adminId = currentAdminId(req.user);
     const med = await Medicine.create({
-      name, genericName, manufacturer, form, strength, category, controlled, lowStockThreshold,
-      batches: batch ? [batch] : [],
+      type,
+      group,
+      brand,
+      productName,
+      printName,
+      purchasePrice,
+      salePrice,
+      purchaseDate,
+      expiryDate,
+      controlled,
+      lockStockThreshold,
+      batches: [
+        {
+          batchNo,
+          expiryDate,
+          quantity,
+          purchasePrice,
+          salePrice
+        }
+      ],
       admin: adminId
     });
+    debugger
     log(req.user, 'create', 'Medicine', med._id.toString(), null, med);
     res.status(201).json(med);
   } catch (err) { next(err); }
@@ -76,7 +103,7 @@ exports.lowStock = async (req, res, next) => {
   try {
     const adminId = currentAdminId(req.user);
     const meds = await Medicine.find({ admin: adminId });
-    const low = meds.filter(m => m.totalQuantity <= m.lowStockThreshold);
+    const low = meds.filter(m => m.totalQuantity <= m.lockStockThreshold);
     res.json(low);
   } catch (err) { next(err); }
 };
@@ -86,31 +113,69 @@ exports.uploadExcel = async (req, res, next) => {
     if (!req.file) return res.status(400).json({ message: 'File required' });
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-    const created = [];
+    const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
     const adminId = currentAdminId(req.user);
-    for (const r of rows) {
-      if (!r.name || !r.batchNo) continue;
-      const med = await Medicine.create({
-        name: r.name,
-        genericName: r.genericName,
-        manufacturer: r.manufacturer,
-        form: r.form,
-        strength: r.strength,
-        category: r.category,
-        controlled: r.controlled === 'yes',
-        lowStockThreshold: Number(r.lowStockThreshold) || 10,
-        batches: [{
-          batchNo: r.batchNo,
-          expiryDate: r.expiryDate ? new Date(r.expiryDate) : new Date(),
-          quantity: Number(r.quantity) || 0,
-          purchasePrice: Number(r.purchasePrice) || 0,
-          salePrice: Number(r.salePrice) || 0,
-        }],
-        admin: adminId
-      });
-      created.push(med);
-      log(req.user, 'bulkImport', 'Medicine', med._id.toString(), null, med);
+    const created = [];
+debugger;
+    // Normalize header variants -> internal keys
+    const headerMap = {
+      'type': 'type',
+      'group': 'group',
+      'brand': 'brand',
+      'product name': 'productName',
+      'print name': 'printName',
+      'purchase price': 'purchasePrice',
+      'sale price': 'salePrice',
+      'purchase date': 'purchaseDate',
+      'expiry date': 'expiryDate',
+      'batch no': 'batchNo',
+      'quantity': 'quantity'
+    };
+
+    for (const r of rawRows) {
+      // Build object with normalized keys (case-insensitive)
+      const norm = {};
+      for (const k of Object.keys(r)) {
+        const mapped = headerMap[k.toLowerCase().trim()];
+        if (mapped) norm[mapped] = r[k];
+      }
+      // Required minimal fields
+      if (!norm.type || !norm.group || !norm.brand || !norm.productName || !norm.purchasePrice || !norm.salePrice || !norm.purchaseDate || !norm.expiryDate || !norm.batchNo || !norm.quantity) {
+        continue; // skip incomplete rows
+      }
+      const purchasePriceNum = Number(norm.purchasePrice);
+      const salePriceNum = Number(norm.salePrice);
+      if (isNaN(purchasePriceNum) || isNaN(salePriceNum)) continue;
+      try {
+        const med = await Medicine.create({
+          type: norm.type.trim(),
+          group: norm.group.trim(),
+          brand: norm.brand.trim(),
+          productName: norm.productName.trim(),
+          printName: (norm.printName || norm.productName).trim(),
+          purchasePrice: purchasePriceNum,
+          salePrice: salePriceNum,
+          purchaseDate: new Date(norm.purchaseDate),
+          expiryDate: new Date(norm.expiryDate),
+          controlled: !!norm.controlled && String(norm.controlled).toLowerCase() === 'yes',
+          lockStockThreshold: Number(norm.lockStockThreshold) || 10,
+          batches: [
+            {
+              batchNo: String(norm.batchNo).trim(),
+              expiryDate: new Date(norm.expiryDate),
+              quantity: Number(norm.quantity) || 0,
+              purchasePrice: purchasePriceNum,
+              salePrice: salePriceNum
+            }
+          ],
+          admin: adminId
+        });
+        created.push(med);
+        log(req.user, 'bulkImport', 'Medicine', med._id.toString(), null, med);
+      } catch (e) {
+        // Skip invalid record silently; could accumulate errors array for feedback
+        continue;
+      }
     }
     res.status(201).json({ count: created.length, items: created });
   } catch (err) { next(err); }

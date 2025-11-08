@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 
 const SaleItemSchema = new mongoose.Schema({
   medicine: { type: mongoose.Schema.Types.ObjectId, ref: 'Medicine', required: true },
+  productName: { type: String }, // snapshot of medicine name at time of sale
+  brand: { type: String },       // snapshot brand
   batchNo: { type: String, required: true },
   quantity: { type: Number, required: true },
   unitPrice: { type: Number, required: true },
@@ -17,6 +19,9 @@ const SaleSchema = new mongoose.Schema({
   totalDiscount: { type: Number, required: true },
   total: { type: Number, required: true },
   paymentMethod: { type: String, enum: ['cash','card','other'], default: 'cash' },
+  // Cash payment metadata
+  amountTendered: { type: Number }, // only meaningful for cash
+  changeDue: { type: Number },
   status: { type: String, enum: ['active','cancelled','replaced'], default: 'active' },
   originalSaleRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },

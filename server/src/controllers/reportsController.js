@@ -96,8 +96,8 @@ exports.dashboardStats = async (req, res, next) => {
       }
       totalStockUnits += medQty;
       inventoryValue += medValue;
-      if (medQty <= m.lowStockThreshold) {
-        lowStock.push({ id: m._id, name: m.name, quantity: medQty, threshold: m.lowStockThreshold });
+      if (medQty <= m.lockStockThreshold) {
+        lowStock.push({ id: m._id, productName: m.productName, quantity: medQty, threshold: m.lockStockThreshold });
       }
     }
     lowStock.sort((a,b) => a.quantity - b.quantity);

@@ -23,17 +23,47 @@ function currentAdminId(user) {
 
 exports.createSale = async (req, res, next) => {
   try {
-    const { items, paymentMethod } = req.body;
+  const { items, paymentMethod, amountTendered } = req.body;
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ message: 'Items required' });
-    // Validate and deduct stock
+    // Validate items first and enrich with snapshots
+    const enriched = [];
     for (const it of items) {
       const med = await Medicine.findById(it.medicine);
       if (!med) return res.status(400).json({ message: 'Medicine missing' });
+      const batch = med.batches.find(b => b.batchNo === it.batchNo);
+      if (!batch) return res.status(400).json({ message: 'Batch missing' });
+      if (batch.quantity < it.quantity) return res.status(400).json({ message: 'Insufficient stock' });
+      // Determine unit price fallback hierarchy: provided -> batch.salePrice -> med.salePrice
+      const unitPrice = Number(it.unitPrice ?? batch.salePrice ?? med.salePrice);
+      if (isNaN(unitPrice) || unitPrice < 0) return res.status(400).json({ message: 'Invalid unit price' });
+      enriched.push({
+        medicine: med._id,
+        productName: med.productName,
+        brand: med.brand,
+        batchNo: it.batchNo,
+        quantity: it.quantity,
+        unitPrice,
+        discountType: it.discountType || 'none',
+        discountValue: Number(it.discountValue) || 0
+      });
+    }
+    // Deduct stock after validation to avoid partial deductions on error
+    for (const it of enriched) {
+      const med = await Medicine.findById(it.medicine);
       med.decrementStock(it.batchNo, it.quantity);
       await med.save();
     }
-    const totals = computeTotals(items);
+    const totals = computeTotals(enriched);
     const adminId = currentAdminId(req.user);
+    let cashAmountTendered = null;
+    let cashChangeDue = null;
+    if ((paymentMethod || 'cash') === 'cash') {
+      const amt = Number(amountTendered);
+      if (isNaN(amt) || amt <= 0) return res.status(400).json({ message: 'Valid amountTendered required for cash payments' });
+      if (amt < totals.total) return res.status(400).json({ message: 'Amount tendered is less than total' });
+      cashAmountTendered = amt;
+      cashChangeDue = Number((amt - totals.total).toFixed(2));
+    }
     const sale = await Sale.create({
       receiptNumber: generateReceiptNumber(),
       items: totals.items,
@@ -41,6 +71,8 @@ exports.createSale = async (req, res, next) => {
       totalDiscount: totals.totalDiscount,
       total: totals.total,
       paymentMethod: paymentMethod || 'cash',
+      amountTendered: cashAmountTendered,
+      changeDue: cashChangeDue,
       user: req.user._id,
       admin: adminId
     });

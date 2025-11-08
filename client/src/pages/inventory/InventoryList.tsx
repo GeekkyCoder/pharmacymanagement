@@ -7,10 +7,19 @@ import * as XLSX from 'xlsx';
 
 interface MedicineRow {
   id: string;
-  name: string;
-  strength?: string;
+  productName: string;
+  printName: string;
+  brand: string;
+  group: string;
+  type: string;
+  purchasePrice: number;
+  salePrice: number;
+  purchaseDate: string;
+  expiryDate: string;
   totalQuantity: number;
   low: boolean;
+  lockStockThreshold: number;
+  controlled: boolean;
   batches: any[];
 }
 
@@ -27,9 +36,13 @@ const InventoryList: React.FC = () => {
       return;
     }
     const rows = data.map(m => ({
-      Name: m.name,
-      Strength: m.strength || '',
+      Product: m.productName,
+      Brand: m.brand,
+      Group: m.group,
+      Type: m.type,
       Quantity: m.totalQuantity,
+      SalePrice: m.salePrice,
+      Expiry: m.expiryDate ? new Date(m.expiryDate).toLocaleDateString() : '',
       Status: m.low ? 'Low' : 'OK',
       Batches: m.batches?.length || 0
     }));
@@ -58,9 +71,13 @@ const InventoryList: React.FC = () => {
         <Button type="primary" onClick={handleExport} disabled={!data || !data.length}>Export Excel</Button>
       </Space>
       <Table loading={isLoading} rowKey="id" dataSource={data} columns={[
-        { title: 'Name', dataIndex: 'name' },
-        { title: 'Strength', dataIndex: 'strength' },
+        { title: 'Product', dataIndex: 'productName' },
+        { title: 'Brand', dataIndex: 'brand' },
+        { title: 'Group', dataIndex: 'group' },
+        { title: 'Type', dataIndex: 'type' },
         { title: 'Quantity', dataIndex: 'totalQuantity' },
+        { title: 'Sale Price', dataIndex: 'salePrice' },
+        { title: 'Expiry', dataIndex: 'expiryDate', render: (v:string) => v ? new Date(v).toLocaleDateString() : '' },
         { title: 'Status', render: (_, r:MedicineRow) => r.low ? <Tag color="red">Low</Tag> : <Tag color="green">OK</Tag> },
         { title: 'Batches', render: (_, r:MedicineRow) => r.batches.length }
       ]} />
