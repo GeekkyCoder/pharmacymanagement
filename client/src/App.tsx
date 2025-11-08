@@ -5,6 +5,7 @@ import router from './router';
 import { AuthProvider } from './context/AuthContext';
 import { ConfigProvider, App as AntdApp, Spin } from 'antd';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
+import AppFooter from './components/AppFooter';
 import './styles/print.css';
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App: React.FC = () => (
           <ErrorBoundary>
             <RouterProvider router={router} />
             <LoadingOverlay />
+            <AppFooter />
           </ErrorBoundary>
         </AuthProvider>
       </QueryClientProvider>
